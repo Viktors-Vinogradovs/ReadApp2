@@ -1,0 +1,90 @@
+We need to ad short summary
+
+make sure the english parts works well(done)
+
+Let user not UPLOAD file, but copy-paste text(done)
+
+let user upload pdf, word(done)
+
+add English language.(done)
+
+improve simplifier (latvian), alternatively: play with english simplifier
+
+for english, add siplifier as checkmark.
+for latvian, separate mini program thats allow upload text and allow text edditing, + save it.(done)
+
+maybe play with question maker prompt for a drop more creativity
+
+make UI litte bit less wider.
+
+add audio to defult library
+
+difficulty levels for questions
+
+Future app update ideas:
+
+2) apraksti attēlu
+3) skaties video un atbildi uz jautājumiem
+
+ai to science books.
+
+highlight wrong/right aswers(if user aswers wrong or right, text fragment with right asnwer is highlighted)
+read again button
+text fragment limitation(text splitter makes too big fragments we need to adjust size to make iit fit screen)
+book UI(optional for now, but as idea of UI)
+audio tts(importing audio TTS, here are links ```import streamlit as st
+import base64
+import re
+import io
+import requests
+import time
+import asyncio
+import threading
+from gradio_client import Client, handle_file
+import warnings
+from config import HF_API_TOKEN
+
+warnings.filterwarnings("ignore")
+
+# Configuration for different TTS services
+TTS_CONFIG = {
+    "English": {
+        "service": "multilingual_tts",
+        "space_name": "MohamedRashad/Multilingual-TTS",
+        "api_name": "/text_to_speech_edge",
+        "language_code": "English"
+    },
+    "Latvian": {
+        "service": "spaces_api",
+        "space_name": "RaivisDejus/Latvian-Piper-TTS",
+        "api_name": "/synthesize_speech"
+    },
+    "Spanish": {
+        "service": "multilingual_tts",
+        "space_name": "MohamedRashad/Multilingual-TTS",
+        "api_name": "/text_to_speech_edge",
+        "language_code": "Spanish"
+    },
+    "Russian": {
+        "service": "multilingual_tts",
+        "space_name": "MohamedRashad/Multilingual-TTS",
+        "api_name": "/text_to_speech_edge",
+        "language_code": "Russian"
+    }
+}
+```)
+audio text highlight(would be great to make it somehow.)
+to upper button(just button that makes text fragmnet uppercased)
+open fragment one by default.(when user uploads tex, auto open fragment one)
+translation fixes.(when user opens any langauge, he UI should follow chosen language)
+
+tkinter - Built-in Python GUI library, good for simple apps
+PyQt5/PyQt6 or PySide6 - More powerful, professional-looking GUIs
+Kivy - For cross-platform apps including mobile
+
+
+
+
+
+
+simplifier returning back to previous version 

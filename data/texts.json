@@ -1,0 +1,38 @@
+[
+  {
+    "name": "The Three Little Pigs",
+    "language": "English",
+    "parts": {
+      "Part 1": "Once upon a time, there were three little pigs. The first pig built a house of straw. The second pig built a house of sticks. The third pig built a house of bricks.",
+      "Part 2": "One day, a big bad wolf came. He huffed and puffed and blew down the straw house. The first pig ran to the stick house.",
+      "Part 3": "The wolf huffed and puffed and blew down the stick house too. Both pigs ran to the brick house. The wolf could not blow it down. The three pigs were safe!"
+    }
+  },
+  {
+    "name": "Trīs sivēntiņi",
+    "language": "Latvian",
+    "parts": {
+      "1. daļa": "Reiz dzīvoja trīs sivēntiņi. Pirmais sivēntiņš uzcēla māju no salmiņiem. Otrais sivēntiņš uzcēla māju no zariņiem. Trešais sivēntiņš uzcēla māju no ķieģeļiem.",
+      "2. daļa": "Kādu dienu atnāca liels ļaunais vilks. Viņš pūta un pūta un nopūta salmu māju. Pirmais sivēntiņš skrēja uz zariņu māju.",
+      "3. daļa": "Vilks pūta un pūta un nopūta arī zariņu māju. Abi sivēntiņi skrēja uz ķieģeļu māju. Vilks nevarēja to nopūst. Trīs sivēntiņi bija drošībā!"
+    }
+  },
+  {
+    "name": "Los Tres Cerditos",
+    "language": "Spanish",
+    "parts": {
+      "Parte 1": "Había una vez tres cerditos. El primer cerdito construyó una casa de paja. El segundo cerdito construyó una casa de palos. El tercer cerdito construyó una casa de ladrillos.",
+      "Parte 2": "Un día, vino un lobo feroz. Sopló y sopló y derribó la casa de paja. El primer cerdito corrió a la casa de palos.",
+      "Parte 3": "El lobo sopló y sopló y también derribó la casa de palos. Los dos cerditos corrieron a la casa de ladrillos. El lobo no pudo derribarla. ¡Los tres cerditos estaban a salvo!"
+    }
+  },
+  {
+    "name": "Три поросёнка",
+    "language": "Russian",
+    "parts": {
+      "Часть 1": "Жили-были три поросёнка. Первый поросёнок построил дом из соломы. Второй поросёнок построил дом из веток. Третий поросёнок построил дом из кирпичей.",
+      "Часть 2": "Однажды пришёл большой злой волк. Он дул и дул, и сдул соломенный дом. Первый поросёнок побежал в дом из веток.",
+      "Часть 3": "Волк дул и дул, и сдул дом из веток тоже. Оба поросёнка побежали в кирпичный дом. Волк не смог его сдуть. Три поросёнка были в безопасности!"
+    }
+  }
+]

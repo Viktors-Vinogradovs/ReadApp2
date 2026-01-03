@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { TextItem, WordTiming } from '../api/client'
-import { evaluate, generateQuestions, getParts, listTexts, synthesizeAudio, simplify } from '../api/client'
+import { evaluate, generateQuestions, generateQuestionsBatch, getParts, listTexts, synthesizeAudio, simplify } from '../api/client'
 import { LANGS, type Lang, useTranslations } from '../i18n'
 
 type LibraryProps = {
@@ -148,6 +148,22 @@ export default function Library({ language, onLanguageChange }: LibraryProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const fragmentRef = useRef<HTMLDivElement | null>(null)
   const animationFrameRef = useRef<number | null>(null)
+  
+  // Score tracking state
+  const [scoreTracker, setScoreTracker] = useState<{
+    correct: number
+    incorrect: number
+    fragmentScores: Record<string, { correct: number; incorrect: number }>
+  }>({
+    correct: 0,
+    incorrect: 0,
+    fragmentScores: {}
+  })
+  const [showFinalResults, setShowFinalResults] = useState(false)
+  const [justUploaded, setJustUploaded] = useState(false)
+  const [questionCache, setQuestionCache] = useState<Record<number, string[]>>({})
+  const [allQuestionsLoaded, setAllQuestionsLoaded] = useState(false)
+  const [batchGenerating, setBatchGenerating] = useState(false)
 
   const currentQuestion = useMemo(() => questions[qIndex] || '', [questions, qIndex])
 
@@ -173,6 +189,11 @@ export default function Library({ language, onLanguageChange }: LibraryProps) {
       stored && texts.find(t => t.name === stored) ? stored : texts[0]?.name
     if (preferred) {
       setSelectedText(preferred)
+      // Mark as just uploaded for visual feedback
+      if (stored) {
+        setJustUploaded(true)
+        setTimeout(() => setJustUploaded(false), 4000) // Clear after 4 seconds
+      }
     }
     localStorage.removeItem('reading:lastUploaded')
   }, [texts])
@@ -193,11 +214,25 @@ export default function Library({ language, onLanguageChange }: LibraryProps) {
           setSelectedPart(first)
           setFragment(p[first])
           setTextMode('original')
-          loadQuestions('standard', p[first])
+          // Don't auto-generate questions - user should click batch button
+          setQuestions([])
+          setQIndex(0)
+          setAnswer('')
+          setFeedback('')
+          
+          // Auto-scroll to fragment after upload
+          if (justUploaded) {
+            setTimeout(() => {
+              fragmentRef.current?.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'start' 
+              })
+            }, 300)
+          }
         }
       })
       .catch(() => setParts({}))
-  }, [selectedText, language])
+  }, [selectedText, language, justUploaded])
 
   useEffect(() => {
     setRenderedFragment(
@@ -227,6 +262,46 @@ export default function Library({ language, onLanguageChange }: LibraryProps) {
     }
   }
 
+  async function handleBatchGenerateQuestions() {
+    if (!selectedText || !parts || Object.keys(parts).length === 0) return
+    
+    setBatchGenerating(true)
+    setQuestionCache({})
+    setAllQuestionsLoaded(false)
+    
+    try {
+      const fragmentsArray = Object.values(parts)
+      const result = await generateQuestionsBatch(
+        selectedText,
+        fragmentsArray,
+        language,
+        difficulty
+      )
+      
+      // Store all questions in cache
+      setQuestionCache(result.questions_by_fragment)
+      setAllQuestionsLoaded(true)
+      
+      // Load questions for current fragment
+      const currentFragmentIndex = Object.keys(parts).indexOf(selectedPart)
+      if (currentFragmentIndex >= 0 && result.questions_by_fragment[currentFragmentIndex]) {
+        setQuestions(result.questions_by_fragment[currentFragmentIndex])
+        setQIndex(0)
+        setAnswer('')
+        setFeedback('')
+        setHighlight(null)
+        setLastResult('idle')
+      }
+      
+      console.log(`✅ Generated questions for ${result.total_fragments} fragments in ${result.total_api_calls} API call(s)`)
+    } catch (err: any) {
+      console.error('Batch question generation failed', err)
+      alert(err.response?.data?.detail || 'Failed to generate questions. Please try again.')
+    } finally {
+      setBatchGenerating(false)
+    }
+  }
+
   async function handleEvaluate() {
     if (!answer.trim() || !currentQuestion) return
     try {
@@ -237,8 +312,29 @@ export default function Library({ language, onLanguageChange }: LibraryProps) {
         setLastResult('rateLimited')
         return
       }
+      
+      // Update score tracker
+      setScoreTracker(prev => ({
+        ...prev,
+        correct: prev.correct + (res.correct ? 1 : 0),
+        incorrect: prev.incorrect + (res.correct ? 0 : 1),
+        fragmentScores: {
+          ...prev.fragmentScores,
+          [selectedPart]: {
+            correct: (prev.fragmentScores[selectedPart]?.correct || 0) + (res.correct ? 1 : 0),
+            incorrect: (prev.fragmentScores[selectedPart]?.incorrect || 0) + (res.correct ? 0 : 1)
+          }
+        }
+      }))
+      
       setLastResult(res.correct ? 'correct' : 'incorrect')
-      // No auto-advance - user must click "Next question" button
+      
+      // AUTO-ADVANCE if correct
+      if (res.correct) {
+        setTimeout(() => {
+          handleAutoAdvance()
+        }, 1500) // 1.5 second delay to show feedback
+      }
     } catch (err) {
       console.error('evaluation failed', err)
     }
@@ -252,16 +348,48 @@ export default function Library({ language, onLanguageChange }: LibraryProps) {
     setLastResult('idle')
   }
 
+  function handleAutoAdvance() {
+    const isLastQuestion = qIndex >= questions.length - 1
+    const partKeys = Object.keys(parts)
+    const currentPartIndex = partKeys.indexOf(selectedPart)
+    const isLastFragment = currentPartIndex >= partKeys.length - 1
+
+    if (!isLastQuestion) {
+      // Move to next question
+      handleNextQuestion()
+    } else if (!isLastFragment) {
+      // Move to next fragment
+      const nextPart = partKeys[currentPartIndex + 1]
+      handlePartChange(nextPart)
+    } else {
+      // Show final results
+      setShowFinalResults(true)
+    }
+  }
+
   function handlePartChange(part: string) {
     setSelectedPart(part)
     const frag = parts[part]
     setFragment(frag)
     setTextMode('original')
-    loadQuestions('standard', frag)
     setHighlight(null)
     setLastResult('idle')
     setAnswer('')
     setFeedback('')
+    setShowFinalResults(false)
+    
+    // Check if we have cached questions for this fragment
+    const fragmentIndex = Object.keys(parts).indexOf(part)
+    if (allQuestionsLoaded && questionCache[fragmentIndex]) {
+      // Use cached questions
+      setQuestions(questionCache[fragmentIndex])
+      setQIndex(0)
+      console.log(`✅ Using cached questions for fragment ${fragmentIndex}`)
+    } else {
+      // No cached questions - user should use batch generation button
+      setQuestions([])
+      setQIndex(0)
+    }
   }
 
   async function handleModeChange(mode: 'original' | 'simple') {
@@ -388,6 +516,13 @@ export default function Library({ language, onLanguageChange }: LibraryProps) {
           <p style={{ margin: 0, color: '#6a6f91' }}>{t.libraryTitle}</p>
         </div>
       </header>
+
+      {/* Upload Success Banner */}
+      {justUploaded && (
+        <div className="upload-success-banner">
+          {t.textLoadedSuccessfully} <strong>{selectedText}</strong>
+        </div>
+      )}
 
       <div className="top-settings panel">
         <div className="setting-grid">
@@ -557,6 +692,16 @@ export default function Library({ language, onLanguageChange }: LibraryProps) {
                   {questions.length ? `${qIndex + 1}/${questions.length}` : '--'}
                 </small>
               </div>
+              <button
+                className={`batch-generate-btn ${allQuestionsLoaded ? 'loaded' : ''}`}
+                onClick={handleBatchGenerateQuestions}
+                disabled={!selectedText || Object.keys(parts).length === 0 || batchGenerating}
+                style={{ marginBottom: '12px' }}
+              >
+                {batchGenerating ? '⏳ ' + t.generatingAllQuestions : 
+                 allQuestionsLoaded ? '✅ ' + t.questionsGenerated : 
+                 '🎯 ' + t.generateAllQuestions}
+              </button>
               <div className="difficulty-row">
                 {DIFFICULTIES.map(diff => (
                   <button
@@ -592,8 +737,6 @@ export default function Library({ language, onLanguageChange }: LibraryProps) {
                   🎧 {t.audioQuestion}
                 </button>
               </div>
-
-              {!currentQuestion && <p className="hint">{t.questionHint}</p>}
 
               <label>{t.answerLabel}</label>
               <textarea
@@ -639,6 +782,44 @@ export default function Library({ language, onLanguageChange }: LibraryProps) {
           </section>
         </div>
       </div>
+
+      {/* Final Results Modal */}
+      {showFinalResults && (
+        <div className="final-results-overlay" onClick={() => {}}>
+          <div className="final-results-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>{t.storyCompleted}</h2>
+            <div className="score-summary">
+              <div className="score-big">
+                {scoreTracker.correct} / {scoreTracker.correct + scoreTracker.incorrect}
+              </div>
+              <p>{t.correctAnswers}</p>
+            </div>
+            <div className="fragment-breakdown">
+              <h3>{t.fragmentScore}:</h3>
+              {Object.entries(scoreTracker.fragmentScores).map(([part, score]) => (
+                <div key={part} className="fragment-score-row">
+                  <strong>{part}:</strong>
+                  <span className="score-value">
+                    {score.correct}/{score.correct + score.incorrect}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <button 
+              className="start-over-btn"
+              onClick={() => {
+                setShowFinalResults(false)
+                setScoreTracker({ correct: 0, incorrect: 0, fragmentScores: {} })
+                // Reset to first fragment
+                const firstPart = Object.keys(parts)[0]
+                if (firstPart) handlePartChange(firstPart)
+              }}
+            >
+              🔁 {t.startOver}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

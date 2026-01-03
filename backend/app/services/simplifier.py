@@ -1,7 +1,7 @@
-from openai import OpenAI
 from langchain_core.prompts import PromptTemplate
 
 from backend.app.core.config import settings
+from backend.app.core.llm_factory import get_openai_client
 
 
 _cfg = settings()
@@ -91,12 +91,6 @@ _RU_PROMPT = """
     {text}
     """
 
-_client = OpenAI(
-    api_key=_cfg["DEEPSEEK_API_KEY"],
-    base_url="https://api.deepseek.com",
-)
-
-
 _LEVEL_HINTS = {
     "gentle": "Focus on clarifying sentences but keep most original vocabulary.",
     "default": "Balance simplicity with original tone.",
@@ -131,7 +125,9 @@ def simplify_text(
     prompt = PromptTemplate(template=template, input_variables=["text"])
     full = prompt.format(text=text) + f"\n\nSimplification aim: {level_hint}"
 
-    resp = _client.chat.completions.create(
+    # Use centralized OpenAI client factory
+    client = get_openai_client()
+    resp = client.chat.completions.create(
         model="deepseek-chat",
         messages=[
             {"role": "system", "content": system_msg},

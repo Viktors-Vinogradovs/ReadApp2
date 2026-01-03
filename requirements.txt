@@ -1,45 +1,21 @@
-# requirements.txt - Comprehensive dependencies for both Reading App and YouTube Quiz
+# requirements.txt - Production Dependencies
+# Optimized for deployment (~220MB vs original 3.7GB)
 
-python-dotenv
-
-# Reading App Dependencies
-requests>=2.31.0
+# Core Application
 python-dotenv>=1.0.0
-tiktoken>=0.5.0
-beautifulsoup4>=4.12.0
-PyPDF2>=3.0.0
-python-docx>=0.8.11
-
-# FastAPI Backend
 fastapi>=0.115.0
-uvicorn[standard]>=0.30.0
+uvicorn>=0.30.0
 pydantic>=2.9.0
 
-# AI/LLM Dependencies (shared)
+# LLM APIs
 google-generativeai>=0.6
 langchain>=0.2
 langchain-google-genai>=1.0
 openai
 
-# Text Processing
-nltk>=3.8
-spacy>=3.6.0
-
-# Audio Processing (for Reading App)
-pydub>=0.25.1
-librosa>=0.10.0
-soundfile>=0.12.0
-
 # Utilities
-pandas>=2.0.0
-numpy>=1.24.0
-Pillow>=10.0.0
+requests>=2.31.0
+tiktoken>=0.5.0
+gradio_client
 
-# Optional
-torch>=2.0.0
-transformers>=4.30.0
-
-# Development/Testing (optional)
-pytest>=7.4.0
-black>=23.0.0
-flake8>=6.0.0
+# Note: Install dev tools with: pip install -r requirements-dev.txt

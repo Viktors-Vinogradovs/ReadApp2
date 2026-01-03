@@ -1,27 +1,157 @@
-# .gitignore
+# .gitignore - Updated for optimized project structure
 
-# Environment variables - NEVER commit these!
+# ============================================
+# Environment Variables - NEVER COMMIT!
+# ============================================
 .env
 *.env
 .env.local
 .env.*.local
+.env.production
 
-# Python stuff
+# ============================================
+# Python
+# ============================================
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
 
-# Streamlit
-.streamlit/secrets.toml
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
 
-# IDE
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+.eggs/
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
+
+# ============================================
+# Frontend
+# ============================================
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ============================================
+# IDEs and Editors
+# ============================================
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
+*.sublime-project
+*.sublime-workspace
 
-# OS
+# PyCharm
+.idea/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+
+# ============================================
+# Operating System
+# ============================================
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
 Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# ============================================
+# Application Data
+# ============================================
+# Session uploads (ephemeral data)
+data/uploads.json
+
+# Temporary files
+*.tmp
+*.temp
+
+# ============================================
+# Legacy / Streamlit (if present)
+# ============================================
+.streamlit/secrets.toml
+
+# ============================================
+# Build artifacts
+# ============================================
+*.whl
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ============================================
+# Jupyter Notebooks
+# ============================================
+.ipynb_checkpoints/
+*.ipynb
+
+# ============================================
+# Database
+# ============================================
+*.db
+*.sqlite
+*.sqlite3
+
+# ============================================
+# Deployment
+# ============================================
+# PythonAnywhere
+.pythonanywhere/
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# ============================================
+# Package managers
+# ============================================
+# Don't commit root-level package-lock.json (only frontend's)
+/package-lock.json
+/yarn.lock

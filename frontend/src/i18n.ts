@@ -57,6 +57,15 @@ type DictionaryEntry = {
   nextQuestion: string
   titleLabel: string
   titlePlaceholder: string
+  storyCompleted: string
+  correctAnswers: string
+  startOver: string
+  textLoadedSuccessfully: string
+  fragmentScore: string
+  finalScore: string
+  generateAllQuestions: string
+  generatingAllQuestions: string
+  questionsGenerated: string
 }
 
 const dictionary: Record<Lang, DictionaryEntry> = {
@@ -116,6 +125,15 @@ const dictionary: Record<Lang, DictionaryEntry> = {
     nextQuestion: 'Next question',
     titleLabel: 'Title (optional)',
     titlePlaceholder: 'Leave empty to auto-generate from first words',
+    storyCompleted: '🎉 Story Completed!',
+    correctAnswers: 'Correct Answers',
+    startOver: 'Start Over',
+    textLoadedSuccessfully: '✅ Text loaded successfully:',
+    fragmentScore: 'Fragment Score',
+    finalScore: 'Final Score:',
+    generateAllQuestions: 'Generate All Questions',
+    generatingAllQuestions: 'Generating questions for all fragments...',
+    questionsGenerated: 'Questions generated for all fragments!',
   },
   Latvian: {
     libraryTitle: '📚 Bibliotēkas paraugi',
@@ -173,6 +191,15 @@ const dictionary: Record<Lang, DictionaryEntry> = {
     nextQuestion: 'Nākamais jautājums',
     titleLabel: 'Nosaukums (neobligāts)',
     titlePlaceholder: 'Atstāj tukšu, lai automātiski ģenerētu no pirmajiem vārdiem',
+    storyCompleted: '🎉 Stāsts pabeigts!',
+    correctAnswers: 'Pareizās atbildes',
+    startOver: 'Sākt no sākuma',
+    textLoadedSuccessfully: '✅ Teksts ielādēts veiksmīgi:',
+    fragmentScore: 'Fragmenta rezultāts',
+    finalScore: 'Gala rezultāts:',
+    generateAllQuestions: 'Ģenerēt visus jautājumus',
+    generatingAllQuestions: 'Ģenerē jautājumus visiem fragmentiem...',
+    questionsGenerated: 'Jautājumi ģenerēti visiem fragmentiem!',
   },
   Spanish: {
     libraryTitle: '📚 Lecturas de ejemplo',
@@ -230,6 +257,15 @@ const dictionary: Record<Lang, DictionaryEntry> = {
     nextQuestion: 'Siguiente pregunta',
     titleLabel: 'Título (opcional)',
     titlePlaceholder: 'Déjalo vacío para generar automáticamente desde las primeras palabras',
+    storyCompleted: '🎉 ¡Historia completada!',
+    correctAnswers: 'Respuestas correctas',
+    startOver: 'Empezar de nuevo',
+    textLoadedSuccessfully: '✅ Texto cargado correctamente:',
+    fragmentScore: 'Puntuación del fragmento',
+    finalScore: 'Puntuación final:',
+    generateAllQuestions: 'Generar todas las preguntas',
+    generatingAllQuestions: 'Generando preguntas para todos los fragmentos...',
+    questionsGenerated: '¡Preguntas generadas para todos los fragmentos!',
   },
   Russian: {
     libraryTitle: '📚 Примеры из библиотеки',
@@ -287,6 +323,15 @@ const dictionary: Record<Lang, DictionaryEntry> = {
     nextQuestion: 'Следующий вопрос',
     titleLabel: 'Название (необязательно)',
     titlePlaceholder: 'Оставьте пустым для автоматической генерации из первых слов',
+    storyCompleted: '🎉 История завершена!',
+    correctAnswers: 'Правильные ответы',
+    startOver: 'Начать заново',
+    textLoadedSuccessfully: '✅ Текст загружен успешно:',
+    fragmentScore: 'Результат фрагмента',
+    finalScore: 'Финальный результат:',
+    generateAllQuestions: 'Генерировать все вопросы',
+    generatingAllQuestions: 'Генерация вопросов для всех фрагментов...',
+    questionsGenerated: 'Вопросы созданы для всех фрагментов!',
   },
 }
 

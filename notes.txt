@@ -88,3 +88,6 @@ Kivy - For cross-platform apps including mobile
 
 
 simplifier returning back to previous version 
+
+
+clusters of vowels for latvian syllables.(audio highlighting should be adjusted to this)

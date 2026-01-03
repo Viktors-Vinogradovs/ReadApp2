@@ -14,9 +14,26 @@ function Nav() {
     fontWeight: pathname === path ? 700 : 500,
   })
 
+  const uploadLinkStyle = {
+    padding: '0.5rem 1rem',
+    textDecoration: 'none',
+    background: pathname === '/upload' ? '#1f1e5a' : '#7b83ff',
+    color: '#ffffff',
+    fontWeight: 600,
+    borderRadius: '999px',
+    border: 'none',
+    borderBottom: 'none',
+    fontSize: '0.9rem',
+    minHeight: '36px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    transition: 'all 0.2s ease',
+  }
+
   return (
     <nav style={{ display: 'flex', gap: 12, borderBottom: '1px solid #e3e6ff', marginBottom: 16 }}>
-      <Link to="/upload" style={linkStyle('/upload')}>Upload</Link>
+      <Link to="/upload" style={uploadLinkStyle}>📤 Upload your text</Link>
       <Link to="/" style={linkStyle('/')}>Library</Link>
     </nav>
   )

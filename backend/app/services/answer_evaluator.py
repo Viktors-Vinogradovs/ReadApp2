@@ -1,25 +1,27 @@
 import hashlib
 import json
+import logging
 import re
 import time
 from collections import defaultdict
 from uuid import uuid4
 
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
 
 from backend.app.core.config import settings
+from backend.app.core.llm_factory import get_gemini_llm
+from backend.app.core.llm_utils import clean_llm_json_response
+
+logger = logging.getLogger(__name__)
 
 
 _cfg = settings()
 
-llm_evaluation = ChatGoogleGenerativeAI(
-    model=_cfg["GEMINI_QUESTION_MODEL"],
-    api_key=_cfg["GEMINI_API_KEY"],
-    temperature=0.7,
-    top_p=0.7,
-)
+# Use lazy-loaded LLM from factory
+def _get_llm():
+    return get_gemini_llm(temperature=0.7, top_p=0.7)
 
 
 class TokenBucketRateLimiter:
@@ -155,18 +157,33 @@ def evaluate_answer(
         ("human", f"Text:\n{fragment}\n\nQuestion:\n{question}\n\nChild's answer:\n{user_answer}"),
     ])
 
-    response = (prompt | llm_evaluation | StrOutputParser()).invoke({})
+    try:
+        response = (prompt | _get_llm() | StrOutputParser()).invoke({})
+    except ChatGoogleGenerativeAIError as e:
+        error_msg = str(e)
+        logger.error(f"Gemini API error: {error_msg}")
+        
+        # Check for rate limit error
+        if "RESOURCE_EXHAUSTED" in error_msg or "429" in error_msg:
+            raise ValueError(
+                "⏳ API rate limit exceeded. Please wait a few moments and try again. "
+                "If this persists, consider upgrading your Gemini API plan."
+            )
+        elif "PERMISSION_DENIED" in error_msg or "API key" in error_msg:
+            raise ValueError("🔑 API key error. Please check your Gemini API key configuration.")
+        else:
+            raise ValueError(f"❌ API error: {error_msg}")
+    except Exception as e:
+        logger.error(f"Unexpected error during answer evaluation: {e}")
+        raise ValueError(f"❌ Failed to evaluate answer: {str(e)}")
 
-    print("🟡 Raw LLM Response:", response)
-    print(f"🌐 Expected language: {language}")
+    logger.info("🟡 Raw LLM Response received")
+    logger.info(f"🌐 Expected language: {language}")
 
     try:
-        if response.strip().startswith("```json"):
-            response = response.strip().removeprefix("```json").removesuffix("```").strip()
-        elif response.strip().startswith("```"):
-            response = response.strip().removeprefix("```").removesuffix("```").strip()
-
-        result_dict = json.loads(response)
+        # Use centralized JSON cleaning utility
+        cleaned_response = clean_llm_json_response(response)
+        result_dict = json.loads(cleaned_response)
         print(f"✅ Evaluation completed for {language}")
 
         result_dict.setdefault("feedback", "")

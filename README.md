@@ -48,7 +48,7 @@ AI_App/
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Python 3.10+
@@ -89,10 +89,10 @@ Frontend will be available at:
 ```
 
 API will be available at:
-- 🌐 http://localhost:8000
-- 📚 http://localhost:8000/docs (Swagger UI)
+- http://localhost:8000
+- http://localhost:8000/docs (Swagger UI)
 
-## 📦 Dependencies
+## Dependencies
 
 ### Production (requirements.txt) - ~220MB
 ```
@@ -131,7 +131,7 @@ gradio_client        # HuggingFace Spaces TTS
 ---
 
 
-## 🧪 Testing
+## Testing
 
 ```bash
 # Run all tests
@@ -147,7 +147,7 @@ curl http://localhost:8000/texts?lang=English
 
 ---
 
-## 🔐 Environment Variables
+## Environment Variables
 
 Required in `.env` file:
 
@@ -163,6 +163,6 @@ DEEPSEEK_API_KEY=your_key_here
 HF_API_TOKEN=your_token_here
 ```
 
-## 📝 License
+## License
 
 MIT License - See LICENSE file

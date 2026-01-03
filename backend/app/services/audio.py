@@ -1,8 +1,10 @@
 import re
 import time
 from pathlib import Path
+from typing import List, Dict, Optional
 
 import requests
+import pyphen
 from gradio_client import Client
 
 from backend.app.core.config import settings
@@ -18,9 +20,10 @@ TTS_CONFIG = {
         "language_code": "English",
     },
     "Latvian": {
-        "service": "spaces_api",
-        "space_name": "RaivisDejus/Latvian-Piper-TTS",
-        "api_name": "/synthesize_speech",
+        "service": "multilingual_tts",
+        "space_name": "MohamedRashad/Multilingual-TTS",
+        "api_name": "/text_to_speech_edge",
+        "language_code": "Latvian",
     },
     "Spanish": {
         "service": "multilingual_tts",
@@ -34,6 +37,14 @@ TTS_CONFIG = {
         "api_name": "/text_to_speech_edge",
         "language_code": "Russian",
     },
+}
+
+# Initialize hyphenators for your languages (do this once, globally)
+HYPHENATORS = {
+    "English": pyphen.Pyphen(lang='en_US'),
+    "Latvian": pyphen.Pyphen(lang='lv_LV'),
+    "Spanish": pyphen.Pyphen(lang='es_ES'),
+    "Russian": pyphen.Pyphen(lang='ru_RU'),
 }
 
 
@@ -52,8 +63,8 @@ def clean_text_for_tts(text: str) -> str:
     text = re.sub(r'<[^>]+>', '', text)
     
     # Normalize quotes
-    text = text.replace('"', '"').replace('"', '"')
-    text = text.replace(''', "'").replace(''', "'")
+    text = text.replace('“', '"').replace('”', '"')
+    text = text.replace('‘', "'").replace('’', "'")
     text = text.replace('„', '"').replace('‚', '"')  # German-style quotes
     
     # Normalize dashes
@@ -137,6 +148,7 @@ def generate_audio_multilingual_tts(text: str, language_code: str) -> bytes | No
             "English": "Jenny",
             "Spanish": "Elena",
             "Russian": "Svetlana",
+            "Latvian": "Nils",
         }
         speaker = None
         
@@ -227,27 +239,6 @@ def generate_audio_multilingual_tts(text: str, language_code: str) -> bytes | No
         return None
 
 
-def generate_audio_spaces_latvian(text: str) -> bytes | None:
-    """
-    Generate audio using RaivisDejus/Latvian-Piper-TTS space.
-    """
-    try:
-        client = Client("RaivisDejus/Latvian-Piper-TTS")
-        
-        result = client.predict(
-            text,
-            0.1,  # sentence_silence
-            1.0,  # length_scale
-            api_name="/synthesize_speech"
-        )
-        
-        return process_audio_result(result)
-    
-    except Exception as e:
-        print(f"❌ Latvian TTS error: {e}")
-        return None
-
-
 def _hf_router_tts(text: str, model_id: str) -> bytes | None:
     """
     Fallback TTS using HuggingFace router API.
@@ -291,8 +282,6 @@ def generate_audio_hf_api(text: str, language: str = "English") -> bytes | None:
     
     if cfg["service"] == "multilingual_tts":
         return generate_audio_multilingual_tts(text, cfg["language_code"])
-    elif language == "Latvian":
-        return generate_audio_spaces_latvian(text)
     else:
         print(f"⚠️ Unsupported language in TTS_CONFIG: {language}")
         return None
@@ -325,3 +314,113 @@ def synthesize_audio(text: str, language: str = "English") -> bytes:
         raise ValueError(f"TTS generation failed for language={language}")
     
     return audio
+
+
+def count_syllables(word: str, language: str) -> int:
+    """Count syllables in a word using pyphen."""
+    # Remove punctuation for syllable counting
+    clean_word = re.sub(r'[^\w]', '', word)
+    
+    if not clean_word:
+        return 1
+    
+    hyphenator = HYPHENATORS.get(language, HYPHENATORS["English"])
+    hyphenated = hyphenator.inserted(clean_word)
+    
+    # Count hyphens + 1 = syllable count
+    return hyphenated.count('-') + 1
+
+
+def calculate_word_timings(
+    text: str,
+    language: str = "English",
+    estimated_duration: Optional[float] = None
+) -> List[Dict[str, any]]:
+    """
+    Calculate word timings based on syllable count.
+    
+    This generates timing data for synchronized text highlighting during audio playback.
+    Uses pyphen for accurate syllable counting per language.
+    
+    Args:
+        text: The text to split into words
+        language: Language for speed calibration
+        estimated_duration: Total audio duration in seconds (if known)
+    
+    Returns:
+        List of dicts with {word, start, end} for each word
+        
+    Example:
+        >>> timings = calculate_word_timings("Hello world.", "English")
+        >>> timings[0]
+        {'word': 'Hello', 'start': 0.0, 'end': 0.38}
+    """
+    # Syllables per second for each language
+    SYLLABLES_PER_SECOND = {
+        "English": 4.6,
+        "Latvian": 4.9,
+        "Spanish": 4.8,   # Spanish is faster
+        "Russian": 4.5,
+    }
+    
+    # Punctuation pauses
+    PUNCTUATION_PAUSES = {
+        "English": {'.': 1.2, '!': 0.4, '?': 0.4, ',': 0.2, ';': 0.3, ':': 0.3},
+        "Latvian": {'.': 0.2, '!': 0.45, '?': 0.45, ',': 0.2, ';': 0.3, ':': 0.3},
+        "Spanish": {'.': 0.8, '!': 0.35, '?': 0.35, ',': 0.18, ';': 0.25, ':': 0.25},
+        "Russian": {'.': 0.5, '!': 0.5, '?': 0.5, ',': 0.25, ';': 0.35, ':': 0.35},
+    }
+    
+    words = re.findall(r'\S+', text)
+    if not words:
+        return []
+    
+    syllables_per_sec = SYLLABLES_PER_SECOND.get(language, 4.5)
+    language_pauses = PUNCTUATION_PAUSES.get(language, PUNCTUATION_PAUSES["English"])
+    
+    # Calculate syllables and pauses for each word
+    word_data = []
+    total_syllables = 0
+    total_pause_time = 0.0
+    
+    for word in words:
+        syllable_count = count_syllables(word, language)
+        
+        # Check for punctuation
+        pause_duration = 0.0
+        for punct, pause in language_pauses.items():
+            if word.endswith(punct):
+                pause_duration = pause
+                break
+        
+        word_data.append({
+            'word': word,
+            'syllables': syllable_count,
+            'pause': pause_duration
+        })
+        total_syllables += syllable_count
+        total_pause_time += pause_duration
+    
+    # Estimate duration if not provided
+    if estimated_duration is None:
+        base_duration = total_syllables / syllables_per_sec
+        estimated_duration = base_duration + total_pause_time
+    
+    # Calculate timings
+    timings = []
+    current_time = 0.0
+    words_duration = estimated_duration - total_pause_time
+    
+    for wd in word_data:
+        # Time based on syllable proportion
+        word_duration = (wd['syllables'] / total_syllables) * words_duration if total_syllables > 0 else 0.1
+        
+        timings.append({
+            'word': wd['word'],
+            'start': round(current_time, 2),
+            'end': round(current_time + word_duration, 2)
+        })
+        
+        current_time += word_duration + wd['pause']
+    
+    return timings

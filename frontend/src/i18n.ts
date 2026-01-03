@@ -2,6 +2,10 @@ export const LANGS = ['Latvian', 'English', 'Spanish', 'Russian'] as const
 export type Lang = (typeof LANGS)[number]
 
 type DictionaryEntry = {
+  appTitle: string
+  appSubtitle: string
+  navUpload: string
+  navLibrary: string
   libraryTitle: string
   uploadTitle: string
   languageLabel: string
@@ -70,6 +74,10 @@ type DictionaryEntry = {
 
 const dictionary: Record<Lang, DictionaryEntry> = {
   English: {
+    appTitle: 'Reading Coach',
+    appSubtitle: 'Upload your text, simplify it, and practise comprehension with instant feedback.',
+    navUpload: '📤 Upload your text',
+    navLibrary: 'Library',
     libraryTitle: '📚 Read Library Samples',
     uploadTitle: '📝 Upload Your Own Text',
     languageLabel: 'Language',
@@ -136,6 +144,10 @@ const dictionary: Record<Lang, DictionaryEntry> = {
     questionsGenerated: 'Questions generated for all fragments!',
   },
   Latvian: {
+    appTitle: 'Lasīšanas treneris',
+    appSubtitle: 'Augšupielādē tekstu, vienkāršo to un trenē lasītprasmi ar tūlītēju atgriezenisko saiti.',
+    navUpload: '📤 Augšupielādēt tekstu',
+    navLibrary: 'Bibliotēka',
     libraryTitle: '📚 Bibliotēkas paraugi',
     uploadTitle: '📝 Augšupielādē savu tekstu',
     languageLabel: 'Valoda',
@@ -202,6 +214,10 @@ const dictionary: Record<Lang, DictionaryEntry> = {
     questionsGenerated: 'Jautājumi ģenerēti visiem fragmentiem!',
   },
   Spanish: {
+    appTitle: 'Entrenador de Lectura',
+    appSubtitle: 'Sube tu texto, simplifícalo y practica la comprensión con retroalimentación instantánea.',
+    navUpload: '📤 Subir tu texto',
+    navLibrary: 'Biblioteca',
     libraryTitle: '📚 Lecturas de ejemplo',
     uploadTitle: '📝 Sube tu propio texto',
     languageLabel: 'Idioma',
@@ -268,6 +284,10 @@ const dictionary: Record<Lang, DictionaryEntry> = {
     questionsGenerated: '¡Preguntas generadas para todos los fragmentos!',
   },
   Russian: {
+    appTitle: 'Тренер чтения',
+    appSubtitle: 'Загрузите текст, упростите его и тренируйте понимание с мгновенной обратной связью.',
+    navUpload: '📤 Загрузить текст',
+    navLibrary: 'Библиотека',
     libraryTitle: '📚 Примеры из библиотеки',
     uploadTitle: '📝 Загрузите свой текст',
     languageLabel: 'Язык',
@@ -338,5 +358,3 @@ const dictionary: Record<Lang, DictionaryEntry> = {
 export function useTranslations(lang: Lang) {
   return dictionary[lang] ?? dictionary.English
 }
-
-

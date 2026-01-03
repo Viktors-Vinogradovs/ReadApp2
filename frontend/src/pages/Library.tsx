@@ -241,10 +241,25 @@ export default function Library({ language, onLanguageChange }: LibraryProps) {
   }, [displayText, language, highlight, uppercase, wordTimings, currentWordIndex])
 
   async function loadQuestions(mode: 'standard' | 'easy' = difficulty, overrideText?: string) {
+    // 1. Check cache first if we're not forcing a specific text and mode hasn't changed
+    const fragmentIndex = Object.keys(parts).indexOf(selectedPart)
+    if (allQuestionsLoaded && questionCache[fragmentIndex] && !overrideText && mode === difficulty) {
+      console.log(`✅ Using cached questions for fragment ${fragmentIndex}`)
+      setQuestions(questionCache[fragmentIndex])
+      setQIndex(0)
+      setAnswer('')
+      setFeedback('')
+      setHighlight(null)
+      setLastResult('idle')
+      return
+    }
+
     const source =
       overrideText ??
       (textMode === 'simple' && cacheKey ? simpleCache[cacheKey] ?? fragment : fragment)
+    
     if (!source) return
+    
     setLoadingQuestions(true)
     try {
       const qs = await generateQuestions(source, [], language, mode)
@@ -255,6 +270,11 @@ export default function Library({ language, onLanguageChange }: LibraryProps) {
       setFeedback('')
       setHighlight(null)
       setLastResult('idle')
+      
+      // Update cache if this was for the current fragment
+      if (!overrideText) {
+        setQuestionCache(prev => ({ ...prev, [fragmentIndex]: qs }))
+      }
     } catch (err) {
       console.error('failed to load questions', err)
     } finally {
@@ -328,13 +348,6 @@ export default function Library({ language, onLanguageChange }: LibraryProps) {
       }))
       
       setLastResult(res.correct ? 'correct' : 'incorrect')
-      
-      // AUTO-ADVANCE if correct
-      if (res.correct) {
-        setTimeout(() => {
-          handleAutoAdvance()
-        }, 1500) // 1.5 second delay to show feedback
-      }
     } catch (err) {
       console.error('evaluation failed', err)
     }
@@ -398,6 +411,7 @@ export default function Library({ language, onLanguageChange }: LibraryProps) {
       setTextMode('original')
       return
     }
+    
     if (mode === 'simple') {
       const key = cacheKey
       if (key && !simpleCache[key]) {
@@ -408,7 +422,11 @@ export default function Library({ language, onLanguageChange }: LibraryProps) {
           const simplified = await simplify(source, language, 'default')
           setSimpleCache(prev => ({ ...prev, [key]: simplified }))
           setFragment(simplified)
-          loadQuestions(difficulty, simplified)
+          
+          // Only load new questions if we don't have any yet
+          if (questions.length === 0) {
+            loadQuestions(difficulty, simplified)
+          }
         } catch (err) {
           console.error('Failed to simplify', err)
           setTextMode('original')
@@ -418,14 +436,21 @@ export default function Library({ language, onLanguageChange }: LibraryProps) {
         }
       } else if (key && simpleCache[key]) {
         setFragment(simpleCache[key])
-        loadQuestions(difficulty, simpleCache[key])
+        // Only load new questions if we don't have any yet
+        if (questions.length === 0) {
+          loadQuestions(difficulty, simpleCache[key])
+        }
       }
     }
+    
     if (mode === 'original') {
       const base = parts[selectedPart]
       if (base) {
         setFragment(base)
-        loadQuestions(difficulty, base)
+        // Only load new questions if we don't have any yet
+        if (questions.length === 0) {
+          loadQuestions(difficulty, base)
+        }
       }
     }
     setTextMode(mode)
@@ -762,9 +787,8 @@ export default function Library({ language, onLanguageChange }: LibraryProps) {
               
               {(lastResult === 'correct' || lastResult === 'incorrect') && (
                 <button 
-                  onClick={handleNextQuestion}
+                  onClick={handleAutoAdvance}
                   className="next-btn"
-                  disabled={qIndex >= questions.length - 1}
                 >
                   {t.nextQuestion} →
                 </button>

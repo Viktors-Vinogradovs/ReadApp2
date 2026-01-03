@@ -9,8 +9,7 @@ from ..services.simplifier import simplify_text
 from ..services.question_generator import generate_questions, generate_questions_batch
 from ..services.answer_evaluator import evaluate_answer
 from ..services.text_formatter import improve_formatting
-from ..services.audio import synthesize_audio
-from ..services.audio_utils import calculate_word_timings
+from ..services.audio import synthesize_audio, calculate_word_timings
 
 logger = logging.getLogger(__name__)
 

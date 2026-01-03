@@ -17,5 +17,6 @@ openai
 requests>=2.31.0
 tiktoken>=0.5.0
 gradio_client
+pyphen
 
 # Note: Install dev tools with: pip install -r requirements-dev.txt

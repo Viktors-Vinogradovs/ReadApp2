@@ -31,6 +31,25 @@ export async function generateQuestions(fragment: string, previous: string[], la
   return res.data
 }
 
+export async function generateQuestionsBatch(
+  textName: string,
+  fragments: string[],
+  language: string,
+  difficulty: string = 'standard'
+) {
+  const res = await api.post<{
+    questions_by_fragment: Record<number, string[]>
+    total_fragments: number
+    total_api_calls: number
+  }>(`/qa/questions/batch`, {
+    text_name: textName,
+    fragments,
+    language,
+    difficulty
+  })
+  return res.data
+}
+
 export async function evaluate(
   fragment: string,
   question: string,

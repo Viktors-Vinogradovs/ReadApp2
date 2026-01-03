@@ -1,0 +1,17 @@
+# requirements-dev.txt - Development Tools (Optional)
+# Install with: pip install -r requirements-dev.txt
+
+# Include production requirements
+-r requirements.txt
+
+# Development server with hot reload
+uvicorn[standard]>=0.30.0
+
+# Code Quality Tools
+pytest>=7.4.0
+black>=23.0.0
+flake8>=6.0.0
+
+# Optional additions:
+# ipython>=8.0.0           # Better REPL
+# pytest-cov>=4.0.0        # Code coverage

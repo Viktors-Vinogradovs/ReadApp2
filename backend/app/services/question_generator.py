@@ -1,20 +1,23 @@
 import json
+import logging
+from typing import List, Dict
 
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
 
 from backend.app.core.config import settings
+from backend.app.core.llm_factory import get_gemini_llm
+from backend.app.core.llm_utils import clean_llm_json_response
+
+logger = logging.getLogger(__name__)
 
 
 _cfg = settings()
 
-llm_question = ChatGoogleGenerativeAI(
-    model=_cfg["GEMINI_QUESTION_MODEL"],
-    api_key=_cfg["GEMINI_API_KEY"],
-    temperature=0.7,
-    top_p=0.7,
-)
+# Use lazy-loaded LLM from factory
+def _get_llm():
+    return get_gemini_llm(temperature=0.7, top_p=0.7)
 
 
 def _difficulty_hint(difficulty: str) -> str:
@@ -165,17 +168,31 @@ def generate_questions(fragment, previous_questions=None, language="English", di
         ]
     )
 
-    response = (prompt | llm_question | StrOutputParser()).invoke({})
+    try:
+        response = (prompt | _get_llm() | StrOutputParser()).invoke({})
+    except ChatGoogleGenerativeAIError as e:
+        error_msg = str(e)
+        logger.error(f"Gemini API error: {error_msg}")
+        
+        # Check for rate limit error
+        if "RESOURCE_EXHAUSTED" in error_msg or "429" in error_msg:
+            raise ValueError(
+                "⏳ API rate limit exceeded. Please wait a few moments and try again. "
+                "If this persists, consider upgrading your Gemini API plan."
+            )
+        elif "PERMISSION_DENIED" in error_msg or "API key" in error_msg:
+            raise ValueError("🔑 API key error. Please check your Gemini API key configuration.")
+        else:
+            raise ValueError(f"❌ API error: {error_msg}")
+    except Exception as e:
+        logger.error(f"Unexpected error during question generation: {e}")
+        raise ValueError(f"❌ Failed to generate questions: {str(e)}")
 
-    print("🟡 Raw LLM Response:", response)
-    print(f"🌐 Expected language: {language}")
+    logger.info("🟡 Raw LLM Response received")
+    logger.info(f"🌐 Expected language: {language}")
 
-    # --- Clean potential code fences -----------------------------------------
-    cleaned = response.strip()
-    if cleaned.startswith("```json"):
-        cleaned = cleaned.removeprefix("```json").removesuffix("```").strip()
-    elif cleaned.startswith("```"):
-        cleaned = cleaned.removeprefix("```").removesuffix("```").strip()
+    # --- Clean potential code fences using centralized utility ---------------
+    cleaned = clean_llm_json_response(response)
 
     def normalize_questions(parsed):
         """
@@ -228,5 +245,213 @@ def generate_questions(fragment, previous_questions=None, language="English", di
             return []
 
     questions = normalize_questions(parsed)
-    print(f"✅ Normalized to {len(questions)} questions in {language}")
+    logger.info(f"✅ Normalized to {len(questions)} questions in {language}")
     return questions
+
+
+def generate_questions_batch(
+    fragments: List[str],
+    language: str = "English",
+    difficulty: str = "standard",
+    text_name: str = ""
+) -> Dict:
+    """
+    Generate questions for multiple fragments in a single API call.
+    Provides full story context for better question quality.
+    
+    Args:
+        fragments: List of text fragments
+        language: Target language for questions
+        difficulty: Question difficulty level
+        text_name: Name of the text (for logging)
+    
+    Returns:
+        {
+            'questions_by_fragment': {0: ['Q1', 'Q2'], 1: ['Q3', 'Q4'], ...},
+            'api_calls': 1
+        }
+    """
+    if not fragments:
+        return {'questions_by_fragment': {}, 'api_calls': 0}
+    
+    logger.info(f"🎯 Batch question generation: {len(fragments)} fragments, language={language}")
+    
+    # Calculate total size and determine if we can do single batch
+    total_chars = sum(len(f) for f in fragments)
+    logger.info(f"📊 Total text size: {total_chars} characters")
+    
+    # Gemini can handle large contexts, but let's be conservative
+    # Single batch if < 8000 chars (~2000 tokens)
+    if total_chars < 8000:
+        logger.info(f"✅ Using SINGLE BATCH mode (1 API call for all {len(fragments)} fragments)")
+        return _generate_single_batch(fragments, language, difficulty)
+    else:
+        # For very large texts, fall back to sequential generation
+        logger.warning(f"⚠️ Text too large ({total_chars} chars), using SEQUENTIAL mode ({len(fragments)} API calls)")
+        return _generate_sequential(fragments, language, difficulty)
+
+
+def _generate_single_batch(
+    fragments: List[str],
+    language: str,
+    difficulty: str
+) -> Dict:
+    """Generate questions for all fragments in ONE API call."""
+    
+    logger.info("=" * 60)
+    logger.info("🔥 STARTING SINGLE BATCH GENERATION (1 API CALL)")
+    logger.info("=" * 60)
+    
+    # Build comprehensive prompt with full context
+    hint = _difficulty_hint(difficulty)
+    
+    # Calculate questions per fragment
+    questions_per_fragment = [_calculate_question_count(f) for f in fragments]
+    total_questions = sum(questions_per_fragment)
+    
+    logger.info(f"📝 Requesting {total_questions} total questions across {len(fragments)} fragments")
+    
+    # Build fragment list for prompt
+    fragment_list = "\n\n".join([
+        f"FRAGMENT {i}:\n{frag}"
+        for i, frag in enumerate(fragments)
+    ])
+    
+    system_msg = (
+        f"You are a reading comprehension expert creating questions in {language}.\n\n"
+        "TASK: Generate questions for a story divided into fragments.\n"
+        "- You will see the ENTIRE story for context\n"
+        "- Generate questions for EACH fragment separately\n"
+        "- Questions should test comprehension of that specific fragment\n"
+        "- But you can reference earlier/later events for better context\n\n"
+        f"Generate {total_questions} questions total:\n"
+    )
+    
+    for i, count in enumerate(questions_per_fragment):
+        system_msg += f"- Fragment {i}: {count} questions\n"
+    
+    system_msg += (
+        f"\n{hint}\n\n"
+        "IMPORTANT: Return ONLY a JSON object in this exact format:\n"
+        "{{\n"
+        '  "0": ["Question 1 for fragment 0", "Question 2 for fragment 0"],\n'
+        '  "1": ["Question 1 for fragment 1", "Question 2 for fragment 1"],\n'
+        "  ...\n"
+        "}}\n\n"
+        f"All questions must be in {language}. No explanations, just the JSON."
+    )
+    
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_msg),
+        ("human", f"FULL STORY:\n\n{fragment_list}\n\nGenerate questions for each fragment:")
+    ])
+    
+    try:
+        logger.info("=" * 60)
+        logger.info(f"📤 API CALL #1: Sending batch request to Gemini API...")
+        logger.info("=" * 60)
+        response = (prompt | _get_llm() | StrOutputParser()).invoke({})
+        logger.info("=" * 60)
+        logger.info(f"📥 API CALL #1 COMPLETE: Received response from Gemini API")
+        logger.info("=" * 60)
+    except ChatGoogleGenerativeAIError as e:
+        error_msg = str(e)
+        logger.error(f"Gemini API error in batch generation: {error_msg}")
+        
+        if "RESOURCE_EXHAUSTED" in error_msg or "429" in error_msg:
+            raise ValueError(
+                "⏳ API rate limit exceeded. Please wait a few moments and try again."
+            )
+        elif "PERMISSION_DENIED" in error_msg or "API key" in error_msg:
+            raise ValueError("🔑 API key error. Please check your Gemini API key configuration.")
+        else:
+            raise ValueError(f"❌ API error: {error_msg}")
+    except Exception as e:
+        logger.error(f"Unexpected error during batch question generation: {e}")
+        raise ValueError(f"❌ Failed to generate questions: {str(e)}")
+    
+    logger.info("🟡 Received batch response from LLM")
+    
+    # Parse response
+    cleaned = clean_llm_json_response(response)
+    
+    logger.info(f"🔍 Cleaned response (first 500 chars): {cleaned[:500]}")
+    
+    try:
+        parsed = json.loads(cleaned)
+        logger.info("✅ JSON parsing successful")
+    except json.JSONDecodeError as e:
+        logger.error(f"❌ JSON decode error: {e}")
+        logger.error(f"📄 Full cleaned response:\n{cleaned}")
+        
+        # Try quote fix
+        try:
+            logger.info("🔄 Attempting quote fix...")
+            cleaned_fixed = cleaned.replace("'", '"')
+            parsed = json.loads(cleaned_fixed)
+            logger.info("✅ JSON parsing successful after quote fix")
+        except json.JSONDecodeError as e2:
+            logger.error(f"❌ JSON parsing failed even after quote fix: {e2}")
+            logger.error(f"📄 Attempted to parse:\n{cleaned_fixed}")
+            
+            # DON'T fall back to sequential - raise error instead!
+            raise ValueError(
+                f"Failed to parse LLM response as JSON. "
+                f"This is likely a prompt/format issue, not a rate limit. "
+                f"Response preview: {cleaned[:200]}..."
+            )
+    
+    # Convert string keys to integers and validate
+    questions_by_fragment = {}
+    for key, value in parsed.items():
+        try:
+            idx = int(key)
+            if isinstance(value, list) and all(isinstance(q, str) for q in value):
+                questions_by_fragment[idx] = value
+            else:
+                logger.warning(f"Invalid format for fragment {idx}, skipping")
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid key '{key}', skipping")
+    
+    logger.info(f"✅ Successfully generated questions for {len(questions_by_fragment)} fragments in 1 API call")
+    
+    return {
+        'questions_by_fragment': questions_by_fragment,
+        'api_calls': 1
+    }
+
+
+def _generate_sequential(
+    fragments: List[str],
+    language: str,
+    difficulty: str
+) -> Dict:
+    """Fallback: Generate questions fragment-by-fragment."""
+    
+    logger.warning("=" * 60)
+    logger.warning(f"⚠️ USING SEQUENTIAL MODE: {len(fragments)} SEPARATE API CALLS")
+    logger.warning("=" * 60)
+    
+    questions_by_fragment = {}
+    api_calls = 0
+    
+    for i, fragment in enumerate(fragments):
+        try:
+            logger.warning("=" * 60)
+            logger.warning(f"📤 API CALL #{i+2}: Generating questions for fragment {i}...")
+            logger.warning(f"⚠️ THIS IS AN ADDITIONAL API CALL (not part of batch)")
+            logger.warning("=" * 60)
+            questions = generate_questions(fragment, [], language, difficulty)
+            questions_by_fragment[i] = questions
+            api_calls += 1
+            logger.info(f"✅ Fragment {i} complete")
+        except Exception as e:
+            logger.error(f"❌ Failed to generate questions for fragment {i}: {e}")
+            questions_by_fragment[i] = []
+    
+    logger.warning(f"⚠️ Sequential generation complete: {api_calls} TOTAL API CALLS")
+    
+    return {
+        'questions_by_fragment': questions_by_fragment,
+        'api_calls': api_calls
+    }

@@ -1,17 +1,14 @@
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langchain_google_genai import ChatGoogleGenerativeAI
 
 from backend.app.core.config import settings
+from backend.app.core.llm_factory import get_gemini_llm
 
 _cfg = settings()
 
-_formatter = ChatGoogleGenerativeAI(
-    model=_cfg["GEMINI_QUESTION_MODEL"],
-    api_key=_cfg["GEMINI_API_KEY"],
-    temperature=0.4,
-    top_p=0.7,
-)
+# Use lazy-loaded LLM from factory with lower temperature for formatting
+def _get_llm():
+    return get_gemini_llm(temperature=0.4, top_p=0.7)
 
 
 def improve_formatting(text: str, language: str = "English") -> str:
@@ -35,6 +32,6 @@ def improve_formatting(text: str, language: str = "English") -> str:
         ]
     )
 
-    return (prompt | _formatter | StrOutputParser()).invoke({})
+    return (prompt | _get_llm() | StrOutputParser()).invoke({})
 
 

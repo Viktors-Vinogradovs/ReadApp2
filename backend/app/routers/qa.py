@@ -1,15 +1,18 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict
 import base64
-import re
+import logging
 
 from ..services.simplifier import simplify_text
-from ..services.question_generator import generate_questions
+from ..services.question_generator import generate_questions, generate_questions_batch
 from ..services.answer_evaluator import evaluate_answer
 from ..services.text_formatter import improve_formatting
 from ..services.audio import synthesize_audio
+from ..services.audio_utils import calculate_word_timings
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -47,127 +50,6 @@ class AudioRequest(BaseModel):
     language: Optional[str] = "English"
 
 
-def calculate_word_timings(text: str, language: str = "English", estimated_duration: float = None) -> List[dict]:
-    """
-    Calculate approximate word timings based on character length with punctuation pauses.
-    
-    Args:
-        text: The text to split into words
-        language: Language for speed calibration
-        estimated_duration: Total audio duration in seconds (if known)
-    
-    Returns:
-        List of dicts with {word, start, end} for each word
-    """
-    # Language-specific speaking rates (characters per second)
-    # Adjust these values to fine-tune highlighting speed for each language
-    LANGUAGE_SPEEDS = {
-        "English": 13,    # ⬅️ Adjust for English TTS speed
-        "Latvian": 12,    # ⬅️ Adjust for Latvian TTS speed
-        "Spanish": 13,    # ⬅️ Adjust for Spanish TTS speed (often faster)
-        "Russian": 11,    # ⬅️ Adjust for Russian TTS speed
-    }
-    
-    # Language-specific punctuation pause durations (in seconds)
-    # Each language's TTS may have different natural pause lengths
-    PUNCTUATION_PAUSES = {
-        "English": {
-            '.': 0.4,   # Period - longer pause
-            '!': 0.4,   # Exclamation - longer pause
-            '?': 0.4,   # Question - longer pause
-            ',': 0.2,   # Comma - shorter pause
-            ';': 0.3,   # Semicolon - medium pause
-            ':': 0.3,   # Colon - medium pause
-        },
-        "Latvian": {
-            '.': 0.45,  # ⬅️ Adjust for Latvian TTS pauses
-            '!': 0.45,
-            '?': 0.45,
-            ',': 0.2,
-            ';': 0.3,
-            ':': 0.3,
-        },
-        "Spanish": {
-            '.': 0.35,  # ⬅️ Spanish often has shorter pauses
-            '!': 0.35,
-            '?': 0.35,
-            ',': 0.18,
-            ';': 0.25,
-            ':': 0.25,
-        },
-        "Russian": {
-            '.': 0.5,   # ⬅️ Russian may have longer pauses
-            '!': 0.5,
-            '?': 0.5,
-            ',': 0.25,
-            ';': 0.35,
-            ':': 0.35,
-        },
-    }
-    
-    # Split into words, preserving punctuation
-    words = re.findall(r'\S+', text)
-    
-    if not words:
-        return []
-    
-    # Get language-specific speed and pauses
-    chars_per_second = LANGUAGE_SPEEDS.get(language, 13)
-    language_pauses = PUNCTUATION_PAUSES.get(language, PUNCTUATION_PAUSES["English"])
-    
-    # Calculate character count for each word and detect punctuation
-    word_data = []
-    total_chars = 0
-    total_pause_time = 0.0
-    
-    for word in words:
-        # Count only alphanumeric characters for timing
-        char_count = len(re.sub(r'[^\w]', '', word))
-        
-        # Check if word ends with punctuation (using language-specific pauses)
-        pause_duration = 0.0
-        for punct, pause in language_pauses.items():
-            if word.endswith(punct):
-                pause_duration = pause
-                break
-        
-        word_data.append({
-            'word': word,
-            'chars': max(char_count, 1),  # Minimum 1 char
-            'pause': pause_duration
-        })
-        total_chars += word_data[-1]['chars']
-        total_pause_time += pause_duration
-    
-    # Estimate duration if not provided
-    if estimated_duration is None:
-        # Base duration from characters + pause time
-        base_duration = total_chars / chars_per_second
-        estimated_duration = base_duration + total_pause_time
-    
-    # Calculate timing for each word based on character proportion
-    timings = []
-    current_time = 0.0
-    
-    # Duration available for actual words (excluding pauses)
-    words_duration = estimated_duration - total_pause_time
-    
-    for wd in word_data:
-        # Time for this word based on its character proportion
-        word_duration = (wd['chars'] / total_chars) * words_duration if total_chars > 0 else 0.1
-        
-        timings.append({
-            'word': wd['word'],
-            'start': round(current_time, 2),
-            'end': round(current_time + word_duration, 2)
-        })
-        
-        # Move to next word, including any pause after this word
-        current_time += word_duration + wd['pause']
-    
-    return timings
-
-
 @router.post("/audio")
 def create_audio(req: AudioRequest) -> dict:
     """
@@ -201,15 +83,81 @@ class QuestionsRequest(BaseModel):
 
 @router.post("/questions")
 def questions(req: QuestionsRequest) -> List[str]:
-    return [
-        str(q)
-        for q in generate_questions(
-            req.fragment,
-            req.previous_questions,
-            req.language or "English",
-            req.difficulty or "standard",
+    try:
+        return [
+            str(q)
+            for q in generate_questions(
+                req.fragment,
+                req.previous_questions,
+                req.language or "English",
+                req.difficulty or "standard",
+            )
+        ]  # type: ignore
+    except ValueError as e:
+        error_msg = str(e)
+        logger.error(f"Question generation failed: {error_msg}")
+        
+        # Return 429 for rate limits, 500 for other errors
+        if "rate limit" in error_msg.lower() or "⏳" in error_msg:
+            raise HTTPException(status_code=429, detail=error_msg)
+        elif "API key" in error_msg or "🔑" in error_msg:
+            raise HTTPException(status_code=401, detail=error_msg)
+        else:
+            raise HTTPException(status_code=500, detail=error_msg)
+    except Exception as e:
+        logger.error(f"Unexpected error in questions endpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+class BatchQuestionsRequest(BaseModel):
+    text_name: str
+    fragments: List[str]
+    language: Optional[str] = "English"
+    difficulty: Optional[str] = "standard"
+
+
+class BatchQuestionsResponse(BaseModel):
+    questions_by_fragment: Dict[int, List[str]]
+    total_fragments: int
+    total_api_calls: int
+
+
+@router.post("/questions/batch", response_model=BatchQuestionsResponse)
+def batch_questions(req: BatchQuestionsRequest) -> BatchQuestionsResponse:
+    """
+    Generate questions for all fragments in a single or few API calls.
+    Provides full story context to the LLM for better question quality.
+    """
+    try:
+        logger.info(f"Batch question generation for '{req.text_name}' ({len(req.fragments)} fragments)")
+        
+        result = generate_questions_batch(
+            fragments=req.fragments,
+            language=req.language or "English",
+            difficulty=req.difficulty or "standard",
+            text_name=req.text_name
         )
-    ]  # type: ignore
+        
+        logger.info(f"✅ Generated questions for {len(result['questions_by_fragment'])} fragments")
+        
+        return BatchQuestionsResponse(
+            questions_by_fragment=result['questions_by_fragment'],
+            total_fragments=len(req.fragments),
+            total_api_calls=result.get('api_calls', 1)
+        )
+    except ValueError as e:
+        error_msg = str(e)
+        logger.error(f"Batch question generation failed: {error_msg}")
+        
+        if "rate limit" in error_msg.lower() or "⏳" in error_msg:
+            raise HTTPException(status_code=429, detail=error_msg)
+        elif "API key" in error_msg or "🔑" in error_msg:
+            raise HTTPException(status_code=401, detail=error_msg)
+        else:
+            raise HTTPException(status_code=500, detail=error_msg)
+    except Exception as e:
+        logger.error(f"Unexpected error in batch questions endpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 class EvaluateRequest(BaseModel):
@@ -223,12 +171,27 @@ class EvaluateRequest(BaseModel):
 
 @router.post("/evaluate")
 def evaluate(req: EvaluateRequest) -> dict:
-    # Pass userId if provided for rate limiting consistency
-    return evaluate_answer(
-        req.fragment,
-        req.question,
-        req.answer,
-        req.language or "English",
-        user_id=req.userId,
-        strictness=req.strictness or 2,
-    )  # type: ignore
+    try:
+        # Pass userId if provided for rate limiting consistency
+        return evaluate_answer(
+            req.fragment,
+            req.question,
+            req.answer,
+            req.language or "English",
+            user_id=req.userId,
+            strictness=req.strictness or 2,
+        )  # type: ignore
+    except ValueError as e:
+        error_msg = str(e)
+        logger.error(f"Answer evaluation failed: {error_msg}")
+        
+        # Return 429 for rate limits, 500 for other errors
+        if "rate limit" in error_msg.lower() or "⏳" in error_msg:
+            raise HTTPException(status_code=429, detail=error_msg)
+        elif "API key" in error_msg or "🔑" in error_msg:
+            raise HTTPException(status_code=401, detail=error_msg)
+        else:
+            raise HTTPException(status_code=500, detail=error_msg)
+    except Exception as e:
+        logger.error(f"Unexpected error in evaluate endpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")

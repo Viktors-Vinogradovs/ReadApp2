@@ -64,8 +64,8 @@ AI_App/
 
 ```bash
 # 1. Clone repository
-git clone <your-repo-url>
-cd AI_App
+git clone https://github.com/Viktors-Vinogradovs/ReadApp2
+cd ReadApp2
 
 # 2. Create virtual environment
 python -m venv .venv
@@ -120,15 +120,9 @@ tiktoken             # Token counting
 requests             # HTTP client
 gradio_client        # HuggingFace Spaces TTS
 ```
-
-### Development (requirements-dev.txt) - Optional
-Additional tools for development:
-- `pytest`, `black`, `flake8` - Testing & code quality
-- `uvicorn[standard]` - Dev server with auto-reload
-
 ---
 
-## 🌐 API Endpoints
+## API Endpoints
 
 ### Core
 - `GET /health` - Health check
@@ -148,13 +142,11 @@ Additional tools for development:
 
 ---
 
-## 🛠️ Makefile Commands
+## Makefile Commands
 
 ```bash
 # Setup
 make install-prod    # Install production deps (~220MB)
-make install-dev     # Install dev deps
-make install-full    # Install everything (adds ~3GB)
 
 # Running
 make run             # Start production server
@@ -174,7 +166,7 @@ make size-check      # Check installed package sizes
 
 ---
 
-## 🚀 Deployment
+##  Deployment
 
 ### PythonAnywhere (Recommended)
 

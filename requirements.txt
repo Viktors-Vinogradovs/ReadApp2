@@ -1,5 +1,4 @@
 # requirements.txt - Production Dependencies
-# Optimized for deployment (~220MB vs original 3.7GB)
 
 # Core Application
 python-dotenv>=1.0.0
